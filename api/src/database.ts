@@ -246,8 +246,15 @@ function initSchema() {
     CREATE TABLE IF NOT EXISTS push_tokens (
       id TEXT PRIMARY KEY,
       token TEXT UNIQUE NOT NULL,
-      platform TEXT NOT NULL CHECK(platform IN ('ios', 'android', 'web')),
+      platform TEXT NOT NULL DEFAULT 'web',
+      subscription TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration: add subscription column if upgrading from expo-server-sdk version
+  const cols = db.pragma('table_info(push_tokens)') as { name: string }[];
+  if (cols.length > 0 && !cols.find(c => c.name === 'subscription')) {
+    db.exec('ALTER TABLE push_tokens ADD COLUMN subscription TEXT');
+  }
 }

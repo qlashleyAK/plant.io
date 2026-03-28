@@ -1,7 +1,13 @@
-import { Expo, ExpoPushMessage } from 'expo-server-sdk';
+import webpush from 'web-push';
 import { getDb } from './database';
 
-const expo = new Expo();
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'REDACTED_VAPID_PUBLIC_KEY';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'REDACTED_VAPID_PRIVATE_KEY';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:qlashley@plantio.net';
+
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+
+export { VAPID_PUBLIC_KEY };
 
 export async function sendPushNotifications(
   title: string,
@@ -9,39 +15,23 @@ export async function sendPushNotifications(
   data?: Record<string, string>
 ): Promise<void> {
   const db = getDb();
-  const tokens = db.prepare('SELECT token FROM push_tokens').all() as { token: string }[];
+  const subs = db.prepare('SELECT id, subscription FROM push_tokens').all() as { id: string; subscription: string }[];
 
-  if (tokens.length === 0) return;
+  if (subs.length === 0) return;
 
-  const messages: ExpoPushMessage[] = [];
-  for (const { token } of tokens) {
-    if (!Expo.isExpoPushToken(token)) {
-      console.warn(`[PUSH] Invalid token removed: ${token}`);
-      db.prepare('DELETE FROM push_tokens WHERE token = ?').run(token);
-      continue;
-    }
-    messages.push({
-      to: token,
-      sound: 'default',
-      title,
-      body,
-      data: data || {},
-    });
-  }
+  const payload = JSON.stringify({ title, body, data: data || {} });
 
-  if (messages.length === 0) return;
-
-  const chunks = expo.chunkPushNotifications(messages);
-  for (const chunk of chunks) {
+  for (const row of subs) {
     try {
-      const receipts = await expo.sendPushNotificationsAsync(chunk);
-      for (const receipt of receipts) {
-        if (receipt.status === 'error') {
-          console.error('[PUSH] Send error:', receipt.message);
-        }
+      const subscription = JSON.parse(row.subscription);
+      await webpush.sendNotification(subscription, payload);
+    } catch (err: any) {
+      if (err.statusCode === 410 || err.statusCode === 404) {
+        db.prepare('DELETE FROM push_tokens WHERE id = ?').run(row.id);
+        console.log(`[PUSH] Removed expired subscription ${row.id}`);
+      } else {
+        console.error(`[PUSH] Send failed for ${row.id}:`, err.message);
       }
-    } catch (err) {
-      console.error('[PUSH] Chunk send failed:', err);
     }
   }
 }

@@ -70,6 +70,9 @@ services:
       - OLLAMA_HOST=http://192.168.40.199:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma3:27b-abliterated-vision}
       - OLLAMA_TEXT_MODEL=${OLLAMA_TEXT_MODEL:-gpt-oss:20b-heretic-ara-v3}
+      - VAPID_PUBLIC_KEY=REDACTED_VAPID_PUBLIC_KEY
+      - VAPID_PRIVATE_KEY=REDACTED_VAPID_PRIVATE_KEY
+      - VAPID_SUBJECT=mailto:qlashley@plantio.net
     depends_on:
       - mosquitto
       - minio
