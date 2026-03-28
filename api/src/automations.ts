@@ -1,5 +1,6 @@
 import { getDb } from './database';
 import { getMqttClient } from './mqtt';
+import { sendPushNotifications } from './push';
 import { v4 as uuid } from 'uuid';
 
 interface AutomationRule {
@@ -119,6 +120,10 @@ export function evaluateAutomations(sensorId: string, value: number): void {
             id: notifId, type: 'automation', severity, title: rule.name, message,
           }), { qos: 1 });
         }
+
+        sendPushNotifications(rule.name, message, {
+          type: 'automation', notificationId: notifId, sensorId: sensorId,
+        }).catch(err => console.error('[PUSH] automation send failed:', err.message));
       }
     }
   }
@@ -173,6 +178,10 @@ function checkTimepoints(): void {
         title: `Timepoint overdue: ${tp.title}`, message,
       }), { qos: 1 });
     }
+
+    sendPushNotifications(`Timepoint overdue: ${tp.title}`, message, {
+      type: 'timepoint', notificationId: notifId, timepointId: tp.id,
+    }).catch(err => console.error('[PUSH] overdue tp send failed:', err.message));
   }
 
   const upcomingPoints = db.prepare(`
@@ -205,5 +214,9 @@ function checkTimepoints(): void {
         title: `Upcoming: ${tp.title}`, message,
       }), { qos: 1 });
     }
+
+    sendPushNotifications(`Upcoming: ${tp.title}`, message, {
+      type: 'timepoint', notificationId: notifId, timepointId: tp.id,
+    }).catch(err => console.error('[PUSH] upcoming tp send failed:', err.message));
   }
 }

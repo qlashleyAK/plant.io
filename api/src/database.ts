@@ -242,5 +242,12 @@ function initSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_actuator_schedules_actuator
       ON actuator_schedules(actuator_id, enabled);
+
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      platform TEXT NOT NULL CHECK(platform IN ('ios', 'android', 'web')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }

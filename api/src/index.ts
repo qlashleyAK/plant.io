@@ -16,6 +16,7 @@ import automationsRouter from './routes/automations';
 import notificationsRouter from './routes/notifications';
 import aiRouter from './routes/ai';
 import schedulesRouter from './routes/schedules';
+import pushRouter from './routes/push';
 import { startScheduler } from './scheduler';
 
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -44,8 +45,13 @@ async function main() {
   // Auth middleware for all other /api routes
   app.use('/api', (req, res, next) => {
     if (req.path.startsWith('/auth')) return next();
-    const token = req.cookies?.[COOKIE_NAME];
-    if (token && verifyToken(token)) return next();
+    const cookieToken = req.cookies?.[COOKIE_NAME];
+    if (cookieToken && verifyToken(cookieToken)) return next();
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const bearerToken = authHeader.slice(7);
+      if (verifyToken(bearerToken)) return next();
+    }
     res.status(401).json({ error: 'Not authenticated' });
   });
 
@@ -59,6 +65,7 @@ async function main() {
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/ai', aiRouter);
   app.use('/api/schedules', schedulesRouter);
+  app.use('/api/push', pushRouter);
 
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

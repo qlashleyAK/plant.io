@@ -39,16 +39,24 @@ router.post('/login', (req: Request, res: Response) => {
     maxAge: MAX_AGE_MS,
     path: '/',
   });
-  res.json({ ok: true });
+  res.json({ ok: true, token });
 });
 
 router.get('/verify', (req: Request, res: Response) => {
-  const token = req.cookies?.[COOKIE_NAME];
-  if (token && verifyToken(token)) {
+  const cookieToken = req.cookies?.[COOKIE_NAME];
+  if (cookieToken && verifyToken(cookieToken)) {
     res.status(200).json({ ok: true });
-  } else {
-    res.status(401).json({ error: 'Not authenticated' });
+    return;
   }
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const bearerToken = authHeader.slice(7);
+    if (verifyToken(bearerToken)) {
+      res.status(200).json({ ok: true });
+      return;
+    }
+  }
+  res.status(401).json({ error: 'Not authenticated' });
 });
 
 router.post('/logout', (_req: Request, res: Response) => {
