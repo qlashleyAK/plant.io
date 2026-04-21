@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../hooks/useApi';
 import type { Media } from '../types';
-import { Upload, Image, Film, File, X, Sparkles, Send, Loader2 } from 'lucide-react';
+import { Upload, Image, Film, File, X, Sparkles, Send, Loader2, History } from 'lucide-react';
 
 interface Props {
   growId?: string;
@@ -20,15 +20,42 @@ function AiPanel({ media, onClose }: { media: Media; onClose: () => void }) {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.ai.status().then((s: any) => setAiAvailable(s.configured && s.connected)).catch(() => setAiAvailable(false));
-  }, []);
+    api.ai.conversations({ media_id: media.id }).then(setConversations).catch(() => {});
+  }, [media.id]);
+
+  useEffect(() => {
+    if (conversations.length > 0 && !conversationId) {
+      loadConversation(conversations[0].id);
+    }
+  }, [conversations]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  const loadConversation = async (id: string) => {
+    try {
+      const c = await api.ai.conversation(id);
+      setConversationId(id);
+      setMessages((c.messages || []).map((m: any) => ({
+        role: m.role, text: m.content, model: m.model, duration_ms: m.duration_ms,
+      })));
+      setShowHistory(false);
+    } catch {}
+  };
+
+  const startNew = () => {
+    setConversationId(null);
+    setMessages([]);
+    setShowHistory(false);
+  };
 
   const send = async () => {
     const prompt = input.trim();
@@ -37,8 +64,12 @@ function AiPanel({ media, onClose }: { media: Media; onClose: () => void }) {
     setMessages((prev) => [...prev, { role: 'user', text: prompt }]);
     setLoading(true);
     try {
-      const res = await api.ai.analyze(media.id, prompt);
+      const res = await api.ai.analyze(media.id, prompt, undefined, conversationId || undefined);
       setMessages((prev) => [...prev, { role: 'assistant', text: res.response, model: res.model, duration_ms: res.duration_ms }]);
+      if (res.conversation_id) {
+        setConversationId(res.conversation_id);
+        api.ai.conversations({ media_id: media.id }).then(setConversations).catch(() => {});
+      }
     } catch (err: any) {
       setMessages((prev) => [...prev, { role: 'assistant', text: `Error: ${err.message}` }]);
     }
@@ -73,10 +104,29 @@ function AiPanel({ media, onClose }: { media: Media; onClose: () => void }) {
           <Sparkles size={12} className="text-purple-400" />
           Ask AI about this image
         </div>
-        <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X size={14} /></button>
+        <div className="flex items-center gap-1">
+          {conversations.length > 0 && (
+            <button onClick={() => setShowHistory(!showHistory)} className="text-gray-600 hover:text-gray-300 p-0.5" title="Chat history">
+              <History size={13} />
+            </button>
+          )}
+          <button onClick={onClose} className="text-gray-600 hover:text-gray-300"><X size={14} /></button>
+        </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+      {showHistory && (
+        <div className="border-b border-gray-800 max-h-32 overflow-y-auto scrollbar-thin">
+          <button onClick={startNew} className="w-full text-left px-3 py-1.5 text-[11px] text-purple-400 hover:bg-gray-800/50">+ New conversation</button>
+          {conversations.map((c) => (
+            <button key={c.id} onClick={() => loadConversation(c.id)}
+              className={`w-full text-left px-3 py-1.5 text-[11px] truncate hover:bg-gray-800/50 ${c.id === conversationId ? 'text-gray-200 bg-gray-800/30' : 'text-gray-500'}`}>
+              {c.title} <span className="text-gray-700">· {c.message_count}msg</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0 scrollbar-thin overscroll-contain">
         {messages.length === 0 && (
           <div className="text-center py-6">
             <Sparkles size={24} className="mx-auto text-gray-700 mb-2" />
@@ -248,12 +298,12 @@ export function MediaGallery({ growId, timepointId }: Props) {
             Delete
           </button>
 
-          <div onClick={(e) => e.stopPropagation()} className={`flex ${showAi ? 'flex-col lg:flex-row' : 'flex-col'} gap-4 max-w-6xl w-full max-h-[90vh]`}>
-            <div className={`flex flex-col items-center justify-center ${showAi ? 'lg:flex-1' : ''} min-h-0`}>
+          <div onClick={(e) => e.stopPropagation()} className={`flex ${showAi ? 'flex-col lg:flex-row' : 'flex-col'} gap-4 max-w-6xl w-full max-h-[90vh] overflow-hidden`}>
+            <div className={`flex flex-col items-center justify-center ${showAi ? 'lg:flex-1 shrink' : ''} min-h-0`}>
               {preview.mime_type.startsWith('image/') ? (
-                <img src={api.media.fileUrl(preview.id)} alt={preview.original_name} className={`object-contain rounded-lg ${showAi ? 'max-h-[40vh] lg:max-h-[80vh]' : 'max-h-[75vh]'} max-w-full`} />
+                <img src={api.media.fileUrl(preview.id)} alt={preview.original_name} className={`object-contain rounded-lg ${showAi ? 'max-h-[30vh] lg:max-h-[80vh]' : 'max-h-[75vh]'} max-w-full`} />
               ) : preview.mime_type.startsWith('video/') ? (
-                <video src={api.media.fileUrl(preview.id)} controls className={`rounded-lg ${showAi ? 'max-h-[40vh] lg:max-h-[80vh]' : 'max-h-[75vh]'} max-w-full`} />
+                <video src={api.media.fileUrl(preview.id)} controls className={`rounded-lg ${showAi ? 'max-h-[30vh] lg:max-h-[80vh]' : 'max-h-[75vh]'} max-w-full`} />
               ) : (
                 <div className="text-center text-gray-400">
                   <File size={48} className="mx-auto mb-2" />
@@ -277,7 +327,7 @@ export function MediaGallery({ growId, timepointId }: Props) {
             </div>
 
             {showAi && preview.mime_type.startsWith('image/') && (
-              <div className="lg:w-96 w-full bg-gray-900/95 border border-gray-800 rounded-xl flex flex-col max-h-[45vh] lg:max-h-[80vh]">
+              <div className="lg:w-96 w-full bg-gray-900/95 border border-gray-800 rounded-xl flex flex-col max-h-[50vh] lg:max-h-[80vh] min-h-0 overflow-hidden">
                 <AiPanel media={preview} onClose={() => setShowAi(false)} />
               </div>
             )}

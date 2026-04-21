@@ -71,6 +71,15 @@ export interface CheckField {
   unit: string;
 }
 
+export interface AiReviewConfig {
+  enabled: boolean;
+  prompt?: string;
+  temperature?: number;
+  include_visual?: boolean;
+  telemetry_hours?: number[];
+  notify?: boolean;
+}
+
 export interface TimepointTemplate {
   id: string;
   phase_id: string;
@@ -79,6 +88,8 @@ export interface TimepointTemplate {
   description: string | null;
   required_checks: string;
   order_index: number;
+  camera_id: string | null;
+  ai_config: string | null;
   created_at: string;
 }
 
@@ -166,11 +177,13 @@ export interface ExportJob {
 }
 
 export interface AutomationAction {
-  type: 'mqtt_command' | 'notification';
+  type: 'mqtt_command' | 'notification' | 'capture';
   topic?: string;
   payload?: string;
   severity?: 'info' | 'warning' | 'critical';
   message?: string;
+  camera_id?: string;
+  grow_id?: string;
 }
 
 export interface Automation {
@@ -192,7 +205,7 @@ export interface Automation {
 
 export interface Notification {
   id: string;
-  type: 'automation' | 'timepoint' | 'system';
+  type: 'automation' | 'timepoint' | 'system' | 'ai_review';
   severity: 'info' | 'warning' | 'critical';
   title: string;
   message: string;

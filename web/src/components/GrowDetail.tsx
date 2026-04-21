@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '../hooks/useApi';
-import type { GrowDetail as GrowDetailType, Timepoint, ProtocolPhase, TimepointTemplate, CheckField } from '../types';
+import type { GrowDetail as GrowDetailType, Timepoint, ProtocolPhase, TimepointTemplate, CheckField, Camera as CameraType, AiReviewConfig } from '../types';
 import { TimepointEntry } from './TimepointEntry';
 import { MediaGallery } from './MediaGallery';
 import {
   ArrowLeft, Plus, Clock, CheckCircle2, Circle, FlaskConical,
   Camera, Leaf, Scissors, Eye, ListChecks, Wand2, Trash2, ChevronDown, ChevronUp, AlertTriangle,
-  Sparkles, Send, Loader2, TrendingUp, FileText, MessageCircle,
+  Sparkles, Send, Loader2, TrendingUp, FileText, MessageCircle, History,
 } from 'lucide-react';
 
 const PAGE_SIZE = 30;
@@ -35,11 +35,17 @@ export function GrowDetail({ growId, onBack }: Props) {
   const [tlFilter, setTlFilter] = useState<'all' | 'pending' | 'overdue' | 'completed'>('pending');
   const [tlVisible, setTlVisible] = useState(PAGE_SIZE);
 
+  const [cameras, setCameras] = useState<CameraType[]>([]);
+
   const [phaseForm, setPhaseForm] = useState({ name: '', start_day: 0, end_day: '', description: '', check_times: '09:00' });
-  const [tplForm, setTplForm] = useState({ title: '', type: 'measurement', description: '', checks: [] as CheckField[] });
+  const [tplForm, setTplForm] = useState({
+    title: '', type: 'measurement', description: '', checks: [] as CheckField[], camera_id: '',
+    ai_config: { enabled: false, prompt: '', temperature: 0.7, include_visual: true, notify: true } as AiReviewConfig,
+  });
 
   const load = useCallback(() => { api.grows.get(growId).then(setGrow).catch(console.error); }, [growId]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.cameras.list().then((c) => setCameras(c.filter((x: CameraType) => x.enabled))).catch(() => {}); }, []);
 
   if (!grow) return <div className="flex items-center justify-center py-20"><div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" /></div>;
   if (selectedTp) return <TimepointEntry timepointId={selectedTp} onBack={() => { setSelectedTp(null); load(); }} />;
@@ -61,9 +67,14 @@ export function GrowDetail({ growId, onBack }: Props) {
     await api.grows.addTemplate(growId, phaseId, {
       title: tplForm.title, type: tplForm.type, description: tplForm.description || undefined,
       required_checks: tplForm.checks, order_index: phaseTemplates(phaseId).length,
+      camera_id: tplForm.camera_id || undefined,
+      ai_config: tplForm.ai_config.enabled ? tplForm.ai_config : undefined,
     });
     setShowTplForm(null);
-    setTplForm({ title: '', type: 'measurement', description: '', checks: [] });
+    setTplForm({
+      title: '', type: 'measurement', description: '', checks: [], camera_id: '',
+      ai_config: { enabled: false, prompt: '', temperature: 0.7, include_visual: true, notify: true },
+    });
     load();
   };
 
@@ -226,7 +237,10 @@ export function GrowDetail({ growId, onBack }: Props) {
 
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-400 uppercase tracking-wider">Timepoint Templates</span>
-                          <button onClick={() => { setShowTplForm(phase.id); setTplForm({ title: '', type: 'measurement', description: '', checks: [] }); }}
+                          <button onClick={() => { setShowTplForm(phase.id); setTplForm({
+                            title: '', type: 'measurement', description: '', checks: [], camera_id: '',
+                            ai_config: { enabled: false, prompt: '', temperature: 0.7, include_visual: true, notify: true },
+                          }); }}
                             className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300">
                             <Plus size={10} /> Add Template
                           </button>
@@ -250,6 +264,62 @@ export function GrowDetail({ growId, onBack }: Props) {
                             <input placeholder="Description" value={tplForm.description}
                               onChange={(e) => setTplForm({ ...tplForm, description: e.target.value })}
                               className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200" />
+                            {tplForm.type === 'photo' && cameras.length > 0 && (
+                              <div>
+                                <label className="text-[10px] text-gray-500 block mb-0.5">Auto-capture camera (optional)</label>
+                                <select value={tplForm.camera_id}
+                                  onChange={(e) => setTplForm({ ...tplForm, camera_id: e.target.value })}
+                                  className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200">
+                                  <option value="">None (manual photo)</option>
+                                  {cameras.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
+                              </div>
+                            )}
+
+                            <div className="border border-gray-700/50 rounded-lg p-2.5 space-y-2">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={tplForm.ai_config.enabled}
+                                  onChange={(e) => setTplForm({ ...tplForm, ai_config: { ...tplForm.ai_config, enabled: e.target.checked } })}
+                                  className="rounded bg-gray-900 border-gray-600 text-purple-500 focus:ring-purple-500/30" />
+                                <Sparkles size={12} className="text-purple-400" />
+                                <span className="text-xs text-gray-300">Enable AI review at this timepoint</span>
+                              </label>
+                              {tplForm.ai_config.enabled && (
+                                <div className="space-y-2 pt-1 pl-6">
+                                  <div>
+                                    <label className="text-[10px] text-gray-500 block mb-0.5">Instructions for the AI reviewer</label>
+                                    <textarea value={tplForm.ai_config.prompt || ''}
+                                      onChange={(e) => setTplForm({ ...tplForm, ai_config: { ...tplForm.ai_config, prompt: e.target.value } })}
+                                      placeholder="e.g. Focus on root health and nutrient uptake indicators. Flag any pH drift."
+                                      className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 placeholder-gray-600" rows={2} />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-gray-500 block mb-0.5">
+                                      Temperature: {tplForm.ai_config.temperature?.toFixed(1) ?? '0.7'}
+                                      <span className="text-gray-600 ml-1">({(tplForm.ai_config.temperature ?? 0.7) <= 0.3 ? 'Precise' : (tplForm.ai_config.temperature ?? 0.7) >= 0.8 ? 'Creative' : 'Balanced'})</span>
+                                    </label>
+                                    <input type="range" min="0" max="1" step="0.1" value={tplForm.ai_config.temperature ?? 0.7}
+                                      onChange={(e) => setTplForm({ ...tplForm, ai_config: { ...tplForm.ai_config, temperature: parseFloat(e.target.value) } })}
+                                      className="w-full h-1.5 rounded-lg appearance-none bg-gray-700 accent-purple-500" />
+                                    <div className="flex justify-between text-[9px] text-gray-600 mt-0.5">
+                                      <span>Precise</span><span>Creative</span>
+                                    </div>
+                                  </div>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={tplForm.ai_config.include_visual !== false}
+                                      onChange={(e) => setTplForm({ ...tplForm, ai_config: { ...tplForm.ai_config, include_visual: e.target.checked } })}
+                                      className="rounded bg-gray-900 border-gray-600 text-purple-500 focus:ring-purple-500/30" />
+                                    <span className="text-xs text-gray-400">Analyze latest photo for plant health</span>
+                                  </label>
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" checked={tplForm.ai_config.notify !== false}
+                                      onChange={(e) => setTplForm({ ...tplForm, ai_config: { ...tplForm.ai_config, notify: e.target.checked } })}
+                                      className="rounded bg-gray-900 border-gray-600 text-purple-500 focus:ring-purple-500/30" />
+                                    <span className="text-xs text-gray-400">Notify me when review completes</span>
+                                  </label>
+                                </div>
+                              )}
+                            </div>
 
                             <div>
                               <div className="flex items-center justify-between mb-1.5">
@@ -301,6 +371,24 @@ export function GrowDetail({ growId, onBack }: Props) {
                                       <button onClick={() => deleteTemplate(tpl.id)} className="text-gray-600 hover:text-red-400"><Trash2 size={12} /></button>
                                     </div>
                                     {tpl.description && <p className="text-[11px] text-gray-500 mt-0.5">{tpl.description}</p>}
+                                    {tpl.camera_id && (
+                                      <p className="text-[10px] text-pink-400/70 mt-0.5">
+                                        Auto-capture: {cameras.find((c) => c.id === tpl.camera_id)?.name || tpl.camera_id}
+                                      </p>
+                                    )}
+                                    {tpl.ai_config && (() => {
+                                      try {
+                                        const cfg = JSON.parse(tpl.ai_config);
+                                        if (cfg.enabled) return (
+                                          <p className="text-[10px] text-purple-400/70 mt-0.5 flex items-center gap-1">
+                                            <Sparkles size={9} /> AI review enabled
+                                            {cfg.include_visual !== false && ' (visual)'}
+                                            {cfg.temperature != null && cfg.temperature !== 0.7 && ` · temp ${cfg.temperature}`}
+                                          </p>
+                                        );
+                                      } catch {}
+                                      return null;
+                                    })()}
                                     {checks.length > 0 && (
                                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                                         {checks.map((ck, ci) => (
@@ -353,15 +441,49 @@ function NotebookAI({ growId, growName }: { growId: string; growName: string }) 
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [aiAvailable, setAiAvailable] = useState<boolean | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.ai.status().then((s: any) => setAiAvailable(s.configured && s.connected)).catch(() => setAiAvailable(false));
-  }, []);
+    api.ai.conversations({ grow_id: growId }).then(setConversations).catch(() => {});
+  }, [growId]);
+
+  useEffect(() => {
+    if (conversations.length > 0 && !conversationId) {
+      loadConversation(conversations[0].id);
+    }
+  }, [conversations]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
+
+  const loadConversation = async (id: string) => {
+    try {
+      const c = await api.ai.conversation(id);
+      setConversationId(id);
+      setMessages((c.messages || []).map((m: any) => ({
+        role: m.role, text: m.content, model: m.model, duration_ms: m.duration_ms,
+        context: m.context ? JSON.parse(m.context) : undefined,
+      })));
+      setShowHistory(false);
+    } catch {}
+  };
+
+  const startNew = () => {
+    setConversationId(null);
+    setMessages([]);
+    setShowHistory(false);
+  };
+
+  const deleteConv = async (id: string) => {
+    await api.ai.deleteConversation(id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (conversationId === id) startNew();
+  };
 
   const send = async (prompt: string, mode: 'analyze' | 'generate' | 'chat' = 'chat') => {
     const text = prompt.trim();
@@ -370,10 +492,14 @@ function NotebookAI({ growId, growName }: { growId: string; growName: string }) 
     setMessages((prev) => [...prev, { role: 'user', text }]);
     setLoading(true);
     try {
-      const res = await api.ai.notebook(growId, text, mode);
+      const res = await api.ai.notebook(growId, text, mode, undefined, conversationId || undefined);
       setMessages((prev) => [...prev, {
         role: 'assistant', text: res.response, model: res.model, duration_ms: res.duration_ms, context: res.context,
       }]);
+      if (res.conversation_id) {
+        setConversationId(res.conversation_id);
+        api.ai.conversations({ grow_id: growId }).then(setConversations).catch(() => {});
+      }
     } catch (err: any) {
       setMessages((prev) => [...prev, { role: 'assistant', text: `Error: ${err.message}` }]);
     }
@@ -409,12 +535,44 @@ function NotebookAI({ growId, growName }: { growId: string; growName: string }) 
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 220px)' }}>
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} className="text-purple-400" />
-        <span className="text-sm text-gray-400">AI assistant for <span className="text-gray-200">{growName}</span></span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <Sparkles size={16} className="text-purple-400" />
+          <span className="text-sm text-gray-400">AI assistant for <span className="text-gray-200">{growName}</span></span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          {conversations.length > 0 && (
+            <button onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 hover:text-gray-300 rounded-lg hover:bg-gray-800/50 transition-colors"
+              title="Chat history">
+              <History size={12} /> {conversations.length}
+            </button>
+          )}
+          {conversationId && (
+            <button onClick={startNew}
+              className="px-2 py-1 text-[11px] text-purple-400 hover:text-purple-300 rounded-lg hover:bg-gray-800/50 transition-colors">
+              + New
+            </button>
+          )}
+        </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 min-h-0 mb-4">
+      {showHistory && (
+        <div className="border border-gray-800 rounded-xl mb-3 max-h-40 overflow-y-auto scrollbar-thin bg-gray-900/60">
+          {conversations.map((c) => (
+            <div key={c.id}
+              className={`flex items-center justify-between px-3 py-2 hover:bg-gray-800/50 transition-colors ${c.id === conversationId ? 'bg-gray-800/30' : ''}`}>
+              <button onClick={() => loadConversation(c.id)} className="flex-1 text-left min-w-0">
+                <p className={`text-xs truncate ${c.id === conversationId ? 'text-gray-200' : 'text-gray-400'}`}>{c.title}</p>
+                <p className="text-[10px] text-gray-600">{c.message_count} messages · {new Date(c.updated_at).toLocaleDateString()}</p>
+              </button>
+              <button onClick={() => deleteConv(c.id)} className="text-gray-700 hover:text-red-400 p-1 shrink-0 ml-2"><Trash2 size={11} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 min-h-0 mb-4 scrollbar-thin overscroll-contain">
         {messages.length === 0 && (
           <div className="space-y-4">
             <div className="text-center py-8">

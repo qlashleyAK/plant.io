@@ -109,6 +109,36 @@ services:
       - api
       - mosquitto
 
+  camera-plants:
+    build: ./camera
+    image: plantio-camera:latest
+    container_name: pio-camera-plants
+    restart: unless-stopped
+    devices:
+      - "/dev/v4l/by-id/usb-Sonix_Technology_Co.__Ltd._USB_2.0_Camera_SN0001-video-index0:/dev/video0"
+    environment:
+      DEVICE: /dev/video0
+      RESOLUTION: 1920x1080
+      FPS: 10
+      PORT: 8080
+    ports:
+      - "8082:8080"
+
+  camera-roots:
+    build: ./camera
+    image: plantio-camera:latest
+    container_name: pio-camera-roots
+    restart: unless-stopped
+    devices:
+      - "/dev/v4l/by-id/usb-HD_Camera_Manufacturer_HD_USB_Camera_2020062301-video-index0:/dev/video0"
+    environment:
+      DEVICE: /dev/video0
+      RESOLUTION: 1280x720
+      FPS: 10
+      PORT: 8080
+    ports:
+      - "8083:8080"
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: pio-cloudflared

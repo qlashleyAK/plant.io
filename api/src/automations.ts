@@ -1,6 +1,7 @@
 import { getDb } from './database';
 import { getMqttClient } from './mqtt';
 import { sendPushNotifications } from './push';
+import { performAiReview } from './ai-review';
 import { v4 as uuid } from 'uuid';
 
 interface AutomationRule {
@@ -18,11 +19,13 @@ interface AutomationRule {
 }
 
 interface Action {
-  type: 'mqtt_command' | 'notification';
+  type: 'mqtt_command' | 'notification' | 'capture';
   topic?: string;
   payload?: string;
   severity?: 'info' | 'warning' | 'critical';
   message?: string;
+  camera_id?: string;
+  grow_id?: string;
 }
 
 const sustainedState = new Map<string, number>();
@@ -124,6 +127,17 @@ export function evaluateAutomations(sensorId: string, value: number): void {
         sendPushNotifications(rule.name, message, {
           type: 'automation', notificationId: notifId, sensorId: sensorId,
         }).catch(err => console.error('[PUSH] automation send failed:', err.message));
+      } else if (action.type === 'capture' && action.camera_id) {
+        const client = getMqttClient();
+        if (client?.connected) {
+          client.publish('pio/capture/trigger', JSON.stringify({
+            camera_id: action.camera_id,
+            grow_id: action.grow_id || null,
+            source: 'automation',
+            automation_id: rule.id,
+          }), { qos: 1 });
+          console.log(`[AUTO] ${rule.name}: capture triggered for camera ${action.camera_id}`);
+        }
       }
     }
   }
@@ -148,7 +162,7 @@ function checkTimepoints(): void {
   const nowSqlite = new Date().toISOString().replace('T', ' ').replace('Z', '').replace(/\.\d+$/, '');
 
   const overduePoints = db.prepare(`
-    SELECT tp.*, g.name as grow_name
+    SELECT tp.*, g.name as grow_name, tp.camera_id, tp.ai_config
     FROM timepoints tp
     JOIN grows g ON tp.grow_id = g.id
     WHERE tp.status = 'pending' AND tp.scheduled_at <= ? AND g.status = 'active'
@@ -182,6 +196,30 @@ function checkTimepoints(): void {
     sendPushNotifications(`Timepoint overdue: ${tp.title}`, message, {
       type: 'timepoint', notificationId: notifId, timepointId: tp.id,
     }).catch(err => console.error('[PUSH] overdue tp send failed:', err.message));
+
+    if (tp.type === 'photo' && tp.camera_id) {
+      const client = getMqttClient();
+      if (client?.connected) {
+        client.publish('pio/capture/trigger', JSON.stringify({
+          camera_id: tp.camera_id,
+          grow_id: tp.grow_id,
+          timepoint_id: tp.id,
+          source: 'timepoint',
+        }), { qos: 1 });
+        console.log(`[TP-CHECK] Photo capture triggered for timepoint "${tp.title}", camera ${tp.camera_id}`);
+      }
+    }
+
+    if (tp.ai_config) {
+      try {
+        const aiCfg = JSON.parse(tp.ai_config);
+        if (aiCfg.enabled) {
+          performAiReview(tp.id).catch(err =>
+            console.error(`[TP-CHECK] AI review failed for "${tp.title}":`, err.message)
+          );
+        }
+      } catch {}
+    }
   }
 
   const upcomingPoints = db.prepare(`

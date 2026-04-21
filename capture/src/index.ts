@@ -141,6 +141,57 @@ async function processSchedule(schedule: any, camera: any): Promise<void> {
   }
 }
 
+async function processOnDemandCapture(camera: any, growId?: string, timepointId?: string, source?: string, triggerId?: string): Promise<void> {
+  const db = getDb();
+  const captureTime = new Date().toISOString().replace('T', ' ').replace('Z', '').replace(/\.\d+$/, '');
+  const mediaId = uuid();
+
+  console.log(`[CAPTURE] On-demand: camera "${camera.name}" (${camera.type}), source=${source || 'manual'}`);
+
+  try {
+    const imageBuffer = await captureFromSource(camera);
+
+    const s3Key = `captures/${camera.id}/${captureTime.slice(0, 10)}/${mediaId}.jpg`;
+    await s3.send(new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: s3Key,
+      Body: imageBuffer,
+      ContentType: 'image/jpeg',
+    }));
+
+    db.prepare(`
+      INSERT INTO media (id, grow_id, timepoint_id, camera_id, source, s3_key, s3_bucket, original_name, mime_type, size, captured_at)
+      VALUES (?, ?, ?, ?, 'auto_capture', ?, ?, ?, 'image/jpeg', ?, ?)
+    `).run(
+      mediaId,
+      growId || null,
+      timepointId || null,
+      camera.id,
+      s3Key,
+      S3_BUCKET,
+      `${camera.name}_${captureTime}.jpg`,
+      imageBuffer.length,
+      captureTime,
+    );
+
+    if (mqttClient?.connected) {
+      mqttClient.publish(`pio/capture/${camera.id}`, JSON.stringify({
+        camera_id: camera.id,
+        media_id: mediaId,
+        s3_key: s3Key,
+        captured_at: captureTime,
+        size: imageBuffer.length,
+        source: source || 'manual',
+        trigger_id: triggerId || null,
+      }));
+    }
+
+    console.log(`[CAPTURE] On-demand OK: ${s3Key} (${(imageBuffer.length / 1024).toFixed(0)} KB)`);
+  } catch (err: any) {
+    console.error(`[CAPTURE] On-demand FAILED camera "${camera.name}":`, err.message);
+  }
+}
+
 async function pollSchedules(): Promise<void> {
   const db = getDb();
   const now = new Date().toISOString().replace('T', ' ').replace('Z', '').replace(/\.\d+$/, '');
@@ -186,6 +237,26 @@ async function main(): Promise<void> {
   mqttClient.on('connect', () => {
     console.log('[MQTT] Connected');
     mqttClient.publish('pio/status/capture', 'online', { retain: true });
+    mqttClient.subscribe('pio/capture/trigger', (err) => {
+      if (err) console.error('[MQTT] Subscribe error:', err.message);
+      else console.log('[MQTT] Subscribed to pio/capture/trigger');
+    });
+  });
+
+  mqttClient.on('message', async (topic, payload) => {
+    if (topic === 'pio/capture/trigger') {
+      try {
+        const msg = JSON.parse(payload.toString());
+        const { camera_id, grow_id, timepoint_id, source, automation_id } = msg;
+        if (!camera_id) { console.warn('[CAPTURE] Trigger missing camera_id'); return; }
+        const db = getDb();
+        const camera = db.prepare('SELECT * FROM cameras WHERE id = ? AND enabled = 1').get(camera_id) as any;
+        if (!camera) { console.warn(`[CAPTURE] Trigger: camera ${camera_id} not found or disabled`); return; }
+        await processOnDemandCapture(camera, grow_id, timepoint_id, source, automation_id || timepoint_id);
+      } catch (err: any) {
+        console.error('[CAPTURE] Trigger handler error:', err.message);
+      }
+    }
   });
 
   mqttClient.on('error', (err) => {

@@ -139,15 +139,16 @@ router.get('/:growId/phases/:phaseId/templates', (req: Request, res: Response) =
 router.post('/:growId/phases/:phaseId/templates', (req: Request, res: Response) => {
   const db = getDb();
   const id = uuid();
-  const { title, type, description, required_checks, order_index } = req.body;
+  const { title, type, description, required_checks, order_index, camera_id, ai_config } = req.body;
 
   db.prepare(`
-    INSERT INTO timepoint_templates (id, phase_id, title, type, description, required_checks, order_index)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO timepoint_templates (id, phase_id, title, type, description, required_checks, order_index, camera_id, ai_config)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, req.params.phaseId, title, type || 'observation',
     description || null, JSON.stringify(required_checks || []),
-    order_index ?? 0,
+    order_index ?? 0, camera_id || null,
+    ai_config ? JSON.stringify(ai_config) : null,
   );
 
   const tpl = db.prepare('SELECT * FROM timepoint_templates WHERE id = ?').get(id);
@@ -156,12 +157,13 @@ router.post('/:growId/phases/:phaseId/templates', (req: Request, res: Response) 
 
 router.put('/:growId/templates/:templateId', (req: Request, res: Response) => {
   const db = getDb();
-  const { title, type, description, required_checks, order_index } = req.body;
+  const { title, type, description, required_checks, order_index, camera_id, ai_config } = req.body;
 
   db.prepare(`
-    UPDATE timepoint_templates SET title = ?, type = ?, description = ?, required_checks = ?, order_index = ?
+    UPDATE timepoint_templates SET title = ?, type = ?, description = ?, required_checks = ?, order_index = ?, camera_id = ?, ai_config = ?
     WHERE id = ?
-  `).run(title, type, description || null, JSON.stringify(required_checks || []), order_index ?? 0, req.params.templateId);
+  `).run(title, type, description || null, JSON.stringify(required_checks || []), order_index ?? 0, camera_id || null,
+    ai_config ? JSON.stringify(ai_config) : null, req.params.templateId);
 
   const tpl = db.prepare('SELECT * FROM timepoint_templates WHERE id = ?').get(req.params.templateId);
   res.json(tpl);
@@ -191,8 +193,8 @@ router.post('/:id/generate-timepoints', (req: Request, res: Response) => {
 
   const growStart = new Date(grow.start_date);
   const insert = db.prepare(`
-    INSERT INTO timepoints (id, grow_id, phase_id, template_id, scheduled_at, title, description, type, required_checks, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+    INSERT INTO timepoints (id, grow_id, phase_id, template_id, scheduled_at, title, description, type, required_checks, camera_id, ai_config, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
   `);
 
   let generated = 0;
@@ -229,6 +231,8 @@ router.post('/:id/generate-timepoints', (req: Request, res: Response) => {
               tpl.description || null,
               tpl.type,
               tpl.required_checks || '[]',
+              tpl.camera_id || null,
+              tpl.ai_config || null,
             );
             generated++;
           }

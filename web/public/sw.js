@@ -1,4 +1,4 @@
-const CACHE_NAME = 'plantio-v1';
+const CACHE_NAME = 'plantio-__BUILD_TS__';
 const SHELL_URLS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {

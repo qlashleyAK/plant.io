@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../hooks/useApi';
-import type { Sensor, Automation, AutomationAction } from '../types';
-import { Zap, Plus, Trash2, Power, PowerOff, ChevronDown, ChevronUp, Bell, Radio } from 'lucide-react';
+import type { Sensor, Automation, AutomationAction, Camera, Grow } from '../types';
+import { Zap, Plus, Trash2, Power, PowerOff, ChevronDown, ChevronUp, Bell, Radio, Camera as CameraIcon } from 'lucide-react';
 
 const OPERATORS = [
   { value: '<', label: 'less than (<)' },
@@ -15,6 +15,8 @@ const OPERATORS = [
 export function AutomationsPage() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [sensors, setSensors] = useState<Sensor[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [grows, setGrows] = useState<Grow[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -27,9 +29,13 @@ export function AutomationsPage() {
   const [form, setForm] = useState(emptyForm);
 
   const load = useCallback(async () => {
-    const [a, s] = await Promise.all([api.automations.list(), api.sensors.list()]);
+    const [a, s, c, g] = await Promise.all([
+      api.automations.list(), api.sensors.list(), api.cameras.list(), api.grows.list(),
+    ]);
     setAutomations(a);
     setSensors(s.filter((x: Sensor) => x.type === 'sensor'));
+    setCameras(c.filter((x: Camera) => x.enabled));
+    setGrows(g.filter((x: Grow) => x.status === 'active' || x.status === 'planning'));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -74,9 +80,10 @@ export function AutomationsPage() {
   };
 
   const addAction = (type: AutomationAction['type']) => {
-    const action: AutomationAction = type === 'mqtt_command'
-      ? { type: 'mqtt_command', topic: '', payload: '' }
-      : { type: 'notification', severity: 'warning', message: '' };
+    let action: AutomationAction;
+    if (type === 'mqtt_command') action = { type: 'mqtt_command', topic: '', payload: '' };
+    else if (type === 'capture') action = { type: 'capture', camera_id: cameras[0]?.id || '', grow_id: '' };
+    else action = { type: 'notification', severity: 'warning', message: '' };
     setForm({ ...form, actions: [...form.actions, action] });
   };
 
@@ -168,6 +175,12 @@ export function AutomationsPage() {
                   className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
                   <Bell size={10} /> Notification
                 </button>
+                {cameras.length > 0 && (
+                  <button onClick={() => addAction('capture')}
+                    className="flex items-center gap-1 text-xs text-pink-400 hover:text-pink-300">
+                    <CameraIcon size={10} /> Capture
+                  </button>
+                )}
               </div>
             </div>
 
@@ -181,8 +194,10 @@ export function AutomationsPage() {
               {form.actions.map((action, i) => (
                 <div key={i} className="bg-gray-800/50 border border-gray-700 rounded-lg p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className={`text-xs font-medium ${action.type === 'mqtt_command' ? 'text-emerald-400' : 'text-blue-400'}`}>
-                      {action.type === 'mqtt_command' ? 'MQTT Command' : 'Notification'}
+                    <span className={`text-xs font-medium ${
+                      action.type === 'mqtt_command' ? 'text-emerald-400' : action.type === 'capture' ? 'text-pink-400' : 'text-blue-400'
+                    }`}>
+                      {action.type === 'mqtt_command' ? 'MQTT Command' : action.type === 'capture' ? 'Camera Capture' : 'Notification'}
                     </span>
                     <button onClick={() => removeAction(i)} className="text-gray-600 hover:text-red-400">
                       <Trash2 size={12} />
@@ -201,6 +216,27 @@ export function AutomationsPage() {
                         <input value={action.payload || ''} onChange={(e) => updateAction(i, { payload: e.target.value })}
                           className="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-gray-200 font-mono"
                           placeholder="ON" />
+                      </div>
+                    </div>
+                  ) : action.type === 'capture' ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-gray-500 block mb-0.5">Camera</label>
+                        <select value={action.camera_id || ''}
+                          onChange={(e) => updateAction(i, { camera_id: e.target.value })}
+                          className="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-gray-200">
+                          <option value="">Select camera...</option>
+                          {cameras.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-gray-500 block mb-0.5">Link to grow (optional)</label>
+                        <select value={action.grow_id || ''}
+                          onChange={(e) => updateAction(i, { grow_id: e.target.value })}
+                          className="w-full px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-gray-200">
+                          <option value="">None</option>
+                          {grows.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        </select>
                       </div>
                     </div>
                   ) : (
@@ -301,6 +337,18 @@ export function AutomationsPage() {
                             <code className="text-emerald-300 font-mono">{a.payload}</code>
                             <span className="text-gray-400">to</span>
                             <code className="text-gray-300 font-mono">{a.topic}</code>
+                          </>
+                        ) : a.type === 'capture' ? (
+                          <>
+                            <CameraIcon size={10} className="text-pink-400" />
+                            <span className="text-gray-400">Capture from</span>
+                            <span className="text-pink-300">{cameras.find((c) => c.id === a.camera_id)?.name || a.camera_id}</span>
+                            {a.grow_id && (
+                              <>
+                                <span className="text-gray-600">→</span>
+                                <span className="text-gray-400">{grows.find((g) => g.id === a.grow_id)?.name || 'grow'}</span>
+                              </>
+                            )}
                           </>
                         ) : (
                           <>
