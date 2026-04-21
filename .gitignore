@@ -11,3 +11,9 @@ minio-data/
 .env
 *.log
 .DS_Store
+
+# Tuya device dumps (contain local_keys / API secrets)
+devices.json
+snapshot.json
+tinytuya.json
+tuya-raw.json

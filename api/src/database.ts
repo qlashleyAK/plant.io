@@ -242,5 +242,68 @@ function initSchema() {
 
     CREATE INDEX IF NOT EXISTS idx_actuator_schedules_actuator
       ON actuator_schedules(actuator_id, enabled);
+
+    CREATE TABLE IF NOT EXISTS push_tokens (
+      id TEXT PRIMARY KEY,
+      token TEXT UNIQUE NOT NULL,
+      platform TEXT NOT NULL DEFAULT 'web',
+      subscription TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_conversations (
+      id TEXT PRIMARY KEY,
+      grow_id TEXT,
+      media_id TEXT,
+      title TEXT NOT NULL DEFAULT 'New conversation',
+      model TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (grow_id) REFERENCES grows(id) ON DELETE CASCADE,
+      FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_conv_grow ON ai_conversations(grow_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_ai_conv_media ON ai_conversations(media_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS ai_messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+      content TEXT NOT NULL,
+      model TEXT,
+      duration_ms INTEGER,
+      context TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_ai_msg_conv ON ai_messages(conversation_id, created_at ASC);
   `);
+
+  // Migrations for existing databases
+  const pushCols = db.pragma('table_info(push_tokens)') as { name: string }[];
+  if (pushCols.length > 0 && !pushCols.find(c => c.name === 'subscription')) {
+    db.exec('ALTER TABLE push_tokens ADD COLUMN subscription TEXT');
+  }
+
+  const tplCols = db.pragma('table_info(timepoint_templates)') as { name: string }[];
+  if (tplCols.length > 0 && !tplCols.find(c => c.name === 'camera_id')) {
+    db.exec('ALTER TABLE timepoint_templates ADD COLUMN camera_id TEXT REFERENCES cameras(id) ON DELETE SET NULL');
+  }
+
+  const tpCols = db.pragma('table_info(timepoints)') as { name: string }[];
+  if (tpCols.length > 0 && !tpCols.find(c => c.name === 'camera_id')) {
+    db.exec('ALTER TABLE timepoints ADD COLUMN camera_id TEXT REFERENCES cameras(id) ON DELETE SET NULL');
+  }
+
+  const tplCols2 = db.pragma('table_info(timepoint_templates)') as { name: string }[];
+  if (tplCols2.length > 0 && !tplCols2.find(c => c.name === 'ai_config')) {
+    db.exec('ALTER TABLE timepoint_templates ADD COLUMN ai_config TEXT');
+  }
+
+  const tpCols2 = db.pragma('table_info(timepoints)') as { name: string }[];
+  if (tpCols2.length > 0 && !tpCols2.find(c => c.name === 'ai_config')) {
+    db.exec('ALTER TABLE timepoints ADD COLUMN ai_config TEXT');
+  }
 }

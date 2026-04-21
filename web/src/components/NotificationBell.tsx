@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../hooks/useApi';
+import { usePush } from '../hooks/usePush';
 import type { Notification } from '../types';
-import { Bell, X, Check, CheckCheck, AlertTriangle, Info, AlertCircle, Clock } from 'lucide-react';
+import { Bell, BellRing, X, Check, CheckCheck, AlertTriangle, Info, AlertCircle, Clock } from 'lucide-react';
 
 export function NotificationBell() {
   const [count, setCount] = useState(0);
@@ -74,6 +75,8 @@ export function NotificationBell() {
     return null;
   };
 
+  const push = usePush();
+
   return (
     <div className="relative" ref={panelRef}>
       <button
@@ -105,6 +108,25 @@ export function NotificationBell() {
               )}
             </div>
           </div>
+          {push.supported && (
+            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800/50 bg-gray-800/30">
+              <div className="flex items-center gap-1.5">
+                <BellRing size={12} className={push.subscribed ? 'text-emerald-400' : 'text-gray-500'} />
+                <span className="text-xs text-gray-400">Push to this device</span>
+              </div>
+              <button
+                onClick={push.subscribed ? push.unsubscribe : push.subscribe}
+                disabled={push.loading}
+                className={`text-xs px-2 py-0.5 rounded ${
+                  push.subscribed
+                    ? 'bg-emerald-500/20 text-emerald-400 hover:bg-red-500/20 hover:text-red-400'
+                    : 'bg-gray-700 text-gray-300 hover:bg-emerald-500/20 hover:text-emerald-400'
+                } transition-colors`}
+              >
+                {push.loading ? '...' : push.subscribed ? 'On' : 'Off'}
+              </button>
+            </div>
+          )}
 
           <div className="max-h-96 overflow-y-auto">
             {notifications.length === 0 ? (

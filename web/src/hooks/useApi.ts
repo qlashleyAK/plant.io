@@ -125,16 +125,24 @@ export const api = {
   },
   ai: {
     status: () => request<any>('/ai/status'),
-    analyze: (mediaId: string, prompt: string, model?: string) =>
+    analyze: (mediaId: string, prompt: string, model?: string, conversation_id?: string) =>
       request<any>('/ai/analyze', {
         method: 'POST',
-        body: JSON.stringify({ mediaId, prompt, ...(model ? { model } : {}) }),
+        body: JSON.stringify({ mediaId, prompt, ...(model ? { model } : {}), ...(conversation_id ? { conversation_id } : {}) }),
       }),
-    notebook: (growId: string, prompt: string, mode: 'analyze' | 'generate' | 'chat' = 'chat', model?: string) =>
+    notebook: (growId: string, prompt: string, mode: 'analyze' | 'generate' | 'chat' = 'chat', model?: string, conversation_id?: string) =>
       request<any>('/ai/notebook', {
         method: 'POST',
-        body: JSON.stringify({ growId, prompt, mode, ...(model ? { model } : {}) }),
+        body: JSON.stringify({ growId, prompt, mode, ...(model ? { model } : {}), ...(conversation_id ? { conversation_id } : {}) }),
       }),
+    conversations: (params?: Record<string, string>) => {
+      const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+      return request<any[]>(`/ai/conversations${qs}`);
+    },
+    conversation: (id: string) => request<any>(`/ai/conversations/${id}`),
+    deleteConversation: (id: string) => request<void>(`/ai/conversations/${id}`, { method: 'DELETE' }),
+    review: (timepointId: string) =>
+      request<any>(`/ai/review/${timepointId}`, { method: 'POST' }),
   },
   notifications: {
     list: (params?: Record<string, string>) => {

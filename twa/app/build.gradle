@@ -1,0 +1,41 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'net.plantio.twa'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "net.plantio.twa"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        manifestPlaceholders = [
+            hostName      : "plant-share-001.plantio.net",
+            defaultUrl    : "https://plant-share-001.plantio.net",
+            launcherName  : "plant.io",
+            themeColor    : "#10b981",
+            navigationColor: "#0a0a0a",
+            backgroundColor: "#0a0a0a",
+        ]
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.browser:browser:1.8.0'
+}

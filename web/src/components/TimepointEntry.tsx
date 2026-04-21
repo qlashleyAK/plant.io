@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../hooks/useApi';
 import type { TimepointData, CheckField } from '../types';
-import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2, Sparkles, Eye, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react';
 
 interface Props {
   timepointId: string;
@@ -33,6 +33,7 @@ export function TimepointEntry({ timepointId, onBack }: Props) {
   const [entries, setEntries] = useState<EntryForm[]>([]);
   const [existingData, setExistingData] = useState<TimepointData[]>([]);
   const [saving, setSaving] = useState(false);
+  const [runningReview, setRunningReview] = useState(false);
 
   const load = useCallback(async () => {
     const data = await api.timepoints.get(timepointId);
@@ -101,6 +102,24 @@ export function TimepointEntry({ timepointId, onBack }: Props) {
   } catch {}
   const hasAllChecks = requiredChecks.length > 0 && requiredChecks.every((ck) => existingData.some((d) => d.field_name === ck.field_name));
 
+  const aiData = existingData.filter((d) => d.field_name.startsWith('AI '));
+  const regularData = existingData.filter((d) => !d.field_name.startsWith('AI '));
+  const aiReview = aiData.find((d) => d.field_name === 'AI Review');
+  const aiVisual = aiData.find((d) => d.field_name === 'AI Visual Assessment');
+  const aiGaps = aiData.find((d) => d.field_name === 'AI Data Gaps');
+  const hasAiConfig = tp.ai_config && (() => { try { return JSON.parse(tp.ai_config).enabled; } catch { return false; } })();
+
+  const runAiReview = async () => {
+    setRunningReview(true);
+    try {
+      await api.ai.review(timepointId);
+      await load();
+    } catch (err: any) {
+      console.error('AI review failed:', err);
+    }
+    setRunningReview(false);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -149,8 +168,71 @@ export function TimepointEntry({ timepointId, onBack }: Props) {
         </div>
       )}
 
+      {/* AI Review Results */}
+      {aiData.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className="text-purple-400" />
+              <h3 className="text-sm font-medium text-purple-300">AI Review</h3>
+            </div>
+            <button onClick={runAiReview} disabled={runningReview}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] text-purple-400 hover:text-purple-300 rounded-lg hover:bg-purple-500/10 transition-colors disabled:opacity-40">
+              {runningReview ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Re-run
+            </button>
+          </div>
+
+          {aiGaps && (
+            <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle size={14} className="text-yellow-500 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-xs font-medium text-yellow-400 mb-1">Data Gaps Detected</h4>
+                  <p className="text-xs text-yellow-300/70 whitespace-pre-wrap">{aiGaps.value_text}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {aiVisual && (
+            <div className="bg-gray-900/60 border border-purple-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Eye size={13} className="text-purple-400" />
+                <span className="text-xs font-medium text-purple-300">Visual Plant Health Assessment</span>
+              </div>
+              <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{aiVisual.value_text}</div>
+              <p className="text-[10px] text-gray-600 mt-2">{new Date(aiVisual.created_at).toLocaleString()}</p>
+            </div>
+          )}
+
+          {aiReview && (
+            <div className="bg-gray-900/60 border border-purple-500/20 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={13} className="text-purple-400" />
+                <span className="text-xs font-medium text-purple-300">Comprehensive Review & Recommendations</span>
+              </div>
+              <div className="text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{aiReview.value_text}</div>
+              <p className="text-[10px] text-gray-600 mt-2">{new Date(aiReview.created_at).toLocaleString()}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Run AI Review button (when configured but not yet run) */}
+      {!aiReview && hasAiConfig && (
+        <div className="bg-purple-900/10 border border-purple-500/20 rounded-xl p-4 text-center">
+          <Sparkles size={20} className="mx-auto text-purple-500/50 mb-2" />
+          <p className="text-sm text-gray-400 mb-3">AI review is configured for this timepoint</p>
+          <button onClick={runAiReview} disabled={runningReview}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm transition-colors disabled:opacity-40">
+            {runningReview ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {runningReview ? 'Running AI review...' : 'Run AI Review Now'}
+          </button>
+        </div>
+      )}
+
       {/* Existing Data */}
-      {existingData.length > 0 && (
+      {regularData.length > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-400 mb-2">Recorded Data</h3>
           <div className="bg-gray-900/60 border border-gray-800 rounded-xl overflow-hidden">
@@ -164,7 +246,7 @@ export function TimepointEntry({ timepointId, onBack }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {existingData.map((d) => (
+                {regularData.map((d) => (
                   <tr key={d.id} className="border-b border-gray-800/50">
                     <td className="px-4 py-2 text-gray-300">{d.field_name}</td>
                     <td className="px-4 py-2 text-gray-100 font-mono">{d.value_number !== null ? d.value_number : d.value_text}</td>
