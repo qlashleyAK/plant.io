@@ -9,6 +9,7 @@ Aeroponic monitoring & control system with an electronic lab notebook. Designed 
 | ![Live telemetry](screenshots/telemetry-live.jpg) | ![Automations](screenshots/automations.jpg) | ![Historical analysis](screenshots/historical-analysis.jpg) |
 | ![Actuators](screenshots/actuators.jpg) | ![Cameras](screenshots/cameras.jpg) | ![Discovered devices](screenshots/discovered-devices.jpg) |
 | ![Aeroponic digital twin](screenshots/aeroponic-digital-twin.jpg) | ![Notifications](screenshots/notifications.jpg) | ![Settings storage and retention](screenshots/settings-storage.jpg) |
+| ![Actuator status and pH chart](screenshots/dashboard-actuators-ph-chart.jpg) | | |
 
 <details><summary>Grow management, AI & data</summary>
 
