@@ -4,23 +4,21 @@ Aeroponic monitoring & control system with an electronic lab notebook. Designed 
 
 ## Screenshots
 
-| Live telemetry | Sensors & actuators | Automations |
+| Dashboard & control | Automation & devices | Analysis & operations |
 |---|---|---|
-| ![Live telemetry](screenshots/telemetry-live.jpg) | ![Sensors and actuators](screenshots/sensors-actuators.jpg) | ![Automations](screenshots/automations.jpg) |
+| ![Live telemetry](screenshots/telemetry-live.jpg) | ![Automations](screenshots/automations.jpg) | ![Historical analysis](screenshots/historical-analysis.jpg) |
+| ![Actuators](screenshots/actuators.jpg) | ![Cameras](screenshots/cameras.jpg) | ![Discovered devices](screenshots/discovered-devices.jpg) |
+| ![Aeroponic digital twin](screenshots/aeroponic-digital-twin.jpg) | ![Notifications](screenshots/notifications.jpg) | ![Settings storage and retention](screenshots/settings-storage.jpg) |
 
-| Cameras | AI assistant | Data retention |
+<details><summary>Grow management, AI & data</summary>
+
+| Grow protocol | Grow AI assistant | Data export |
 |---|---|---|
-| ![Cameras](screenshots/cameras.jpg) | ![AI assistant](screenshots/ai-assistant.jpg) | ![Data retention](screenshots/data-retention.jpg) |
+| ![Actually Lettuce protocol](screenshots/actually-lettuce-protocol.jpg) | ![Actually Lettuce AI assistant](screenshots/actually-lettuce-ai-assistant.jpg) | ![Data export](screenshots/data-export.jpg) |
 
-<details><summary>More</summary>
-
-| Local AI models | | |
+| Storage and AI/Ollama | Retention policy and maintenance | |
 |---|---|---|
-| ![Ollama models](screenshots/ollama-models.jpg) | ![More](screenshots/04.jpg) | ![More](screenshots/05.jpg) |
-
-| | | |
-|---|---|---|
-| ![More](screenshots/10.jpg) | | |
+| ![Storage and AI/Ollama settings](screenshots/storage-ai-ollama.jpg) | ![Retention policy](screenshots/retention-policy.jpg) | |
 
 </details>
 
