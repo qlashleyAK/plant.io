@@ -1,0 +1,16 @@
+name: Feature request
+description: New sensor, automation capability, dashboard feature, etc.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What do you want to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: usecase
+    attributes:
+      label: What's your use case? (grow setup it would help)
+    validations:
+      required: true

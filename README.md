@@ -2,6 +2,28 @@
 
 Aeroponic monitoring & control system with an electronic lab notebook. Designed to run on a Raspberry Pi alongside Node-RED, collecting telemetry from Phidget devices (and other I2C/GPIO/serial/Modbus sensors) via MQTT, with a modern React dashboard, automated image capture, S3 media storage, and structured grow tracking for ML dataset generation.
 
+## Screenshots
+
+| Live telemetry | Sensors & actuators | Automations |
+|---|---|---|
+| ![Live telemetry](screenshots/telemetry-live.jpg) | ![Sensors and actuators](screenshots/sensors-actuators.jpg) | ![Automations](screenshots/automations.jpg) |
+
+| Cameras | AI assistant | Data retention |
+|---|---|---|
+| ![Cameras](screenshots/cameras.jpg) | ![AI assistant](screenshots/ai-assistant.jpg) | ![Data retention](screenshots/data-retention.jpg) |
+
+<details><summary>More</summary>
+
+| Local AI models | | |
+|---|---|---|
+| ![Ollama models](screenshots/ollama-models.jpg) | ![More](screenshots/04.jpg) | ![More](screenshots/05.jpg) |
+
+| | | |
+|---|---|---|
+| ![More](screenshots/10.jpg) | | |
+
+</details>
+
 ## Architecture
 
 ```
@@ -59,7 +81,7 @@ docker compose up -d
 Then open:
 - **Dashboard**: http://localhost:3000
 - **Node-RED**: http://localhost:1880
-- **MinIO Console**: http://localhost:9090 (user: `plantio`, pass: `REDACTED_MINIO_PASSWORD`)
+- **MinIO Console**: http://localhost:9090 (credentials from your `.env`)
 
 ### Development (without Docker)
 

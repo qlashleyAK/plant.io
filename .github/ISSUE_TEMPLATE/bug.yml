@@ -1,0 +1,32 @@
+name: Bug report
+description: Something broken or behaving unexpectedly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: And what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: Hardware, sensors/Phidgets or Tuya devices, OS, how you're running the stack (docker compose up?)
+      placeholder: "Pi 5, Phidget VINT + Tuya 6-in-1, Raspberry Pi OS, docker compose"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: "docker compose logs <service> output — redact anything private"
+      render: shell
+  - type: checkboxes
+    id: env
+    attributes:
+      label: Sanity check
+      options:
+        - label: My .env is a copy of .env.example with real values (not committed)
+          required: true
